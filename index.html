@@ -2,19 +2,23 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>dispensary products — search</title>
 <style>
- body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:1.5rem auto;padding:0 1rem;color:#1a1a1a}
+ /* Full-viewport flex column: the heading + filters + count stay fixed at the top and only the
+    table area (.tablewrap) scrolls, so everything above and including the column headers stays put. */
+ body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:0 auto;padding:.6rem 1rem 0;
+   color:#1a1a1a;height:100vh;display:flex;flex-direction:column}
  h1{margin:.2rem 0} .sub{color:#666;margin:0 0 1rem}
  .filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
  .filters input,.filters select{padding:.35rem .5rem;border:1px solid #ccc;border-radius:6px;font:inherit}
  #q{flex:1;min-width:200px}
+ .count{color:#666;margin:.5rem 0}
+ .tablewrap{flex:1;min-height:0;overflow:auto}              /* the only scroll region */
  table{width:100%;border-collapse:collapse;font-size:14px}
  th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #eee}
  td.num{text-align:right;font-variant-numeric:tabular-nums}
  tbody tr:nth-child(even){background:#f4f5f7}                 /* zebra striping */
  thead th{position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;color:#0a58ca;
-   background:#fff;box-shadow:inset 0 -1px 0 #ccc}            /* header stays while rows scroll */
- .count{color:#666;margin:.5rem 0}
- footer{color:#888;font-size:.85rem;margin-top:2rem}
+   background:#fff;box-shadow:inset 0 -1px 0 #ccc}            /* header row stays while rows scroll */
+ footer{color:#888;font-size:.85rem;margin:1rem 0}
 </style></head><body>
 <h1>Dispensary product search</h1>
 <p class="sub">Live menus across every store in a state — collapsed brand, normalized category, potency, price.</p>
@@ -33,6 +37,7 @@
  <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
 </div>
 <div class="count" id="count"></div>
+<div class="tablewrap">
 <table><thead><tr>
  <th data-k="n">Product</th><th data-k="b">Brand</th><th data-k="c">Category</th>
  <th data-k="pt">Type</th><th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
@@ -40,6 +45,7 @@
  <th data-k="sz">Size</th><th data-k="tp:Myrcene" class="num" title="Myrcene (% terpene)">Myr</th><th data-k="tp:Limonene" class="num" title="Limonene (% terpene)">Lim</th><th data-k="tp:Caryophyllene" class="num" title="Caryophyllene (% terpene)">Car</th><th data-k="tp:Pinene" class="num" title="Pinene (% terpene)">Pin</th><th data-k="tp:Linalool" class="num" title="Linalool (% terpene)">Lin</th><th data-k="tp:Terpinolene" class="num" title="Terpinolene (% terpene)">Ter</th><th data-k="tp:Humulene" class="num" title="Humulene (% terpene)">Hum</th><th data-k="tp:Ocimene" class="num" title="Ocimene (% terpene)">Oci</th><th data-k="tp:Bisabolol" class="num" title="Bisabolol (% terpene)">Bis</th><th data-k="store">Store</th>
 </tr></thead><tbody id="rows"></tbody></table>
 <footer>dispensary intelligence pipeline · forehead-prosthesis/dispo-scrape</footer>
+</div>
 <script>
 const CAP = 500;  // render at most this many rows; the count shows the full match total
 const TERPENES = ["Myrcene", "Limonene", "Caryophyllene", "Pinene", "Linalool", "Terpinolene", "Humulene", "Ocimene", "Bisabolol"];  // canonical terpene columns
