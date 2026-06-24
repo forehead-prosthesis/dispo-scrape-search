@@ -1,0 +1,188 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>dispensary products — search</title>
+<style>
+ body{font:15px/1.5 system-ui,sans-serif;max-width:1000px;margin:1.5rem auto;padding:0 1rem;color:#1a1a1a}
+ h1{margin:.2rem 0} .sub{color:#666;margin:0 0 1rem}
+ .filters{display:flex;flex-wrap:wrap;gap:.5rem;align-items:center;margin:.5rem 0 1rem}
+ .filters input,.filters select{padding:.35rem .5rem;border:1px solid #ccc;border-radius:6px;font:inherit}
+ #q{flex:1;min-width:200px}
+ table{width:100%;border-collapse:collapse;font-size:14px}
+ th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #eee}
+ th{cursor:pointer;user-select:none;color:#0a58ca} td.num{text-align:right;font-variant-numeric:tabular-nums}
+ .count{color:#666;margin:.5rem 0}
+ footer{color:#888;font-size:.85rem;margin-top:2rem}
+</style></head><body>
+<h1>Dispensary product search</h1>
+<p class="sub">Live menus across every store in a state — collapsed brand, normalized category, potency, price.</p>
+<div class="filters">
+ <select id="state"><option value="PA">PA</option></select>
+ <input id="q" placeholder="search name or brand…">
+ <select id="brand"><option value="">all brands</option></select>
+ <select id="cat"><option value="">all categories</option></select>
+ <select id="ptype"><option value="">all types</option></select>
+ <select id="strain"><option value="">all strains</option></select>
+ <input id="city" list="citylist" placeholder="city…" style="width:140px">
+ <datalist id="citylist"></datalist>
+ <select id="store"><option value="">all stores</option></select>
+ <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
+ <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
+</div>
+<div class="count" id="count"></div>
+<table><thead><tr>
+ <th data-k="n">Product</th><th data-k="b">Brand</th><th data-k="c">Category</th>
+ <th data-k="pt">Type</th><th data-k="t">Strain</th><th data-k="thc" class="num">THC%</th>
+ <th data-k="cbd" class="num">CBD%</th><th data-k="p" class="num">$</th>
+ <th data-k="sz">Size</th><th data-k="tp:Myrcene" class="num" title="Myrcene (% terpene)">Myr</th><th data-k="tp:Limonene" class="num" title="Limonene (% terpene)">Lim</th><th data-k="tp:Caryophyllene" class="num" title="Caryophyllene (% terpene)">Car</th><th data-k="tp:Pinene" class="num" title="Pinene (% terpene)">Pin</th><th data-k="tp:Linalool" class="num" title="Linalool (% terpene)">Lin</th><th data-k="tp:Terpinolene" class="num" title="Terpinolene (% terpene)">Ter</th><th data-k="tp:Humulene" class="num" title="Humulene (% terpene)">Hum</th><th data-k="tp:Ocimene" class="num" title="Ocimene (% terpene)">Oci</th><th data-k="tp:Bisabolol" class="num" title="Bisabolol (% terpene)">Bis</th><th data-k="store">Store</th>
+</tr></thead><tbody id="rows"></tbody></table>
+<footer>dispensary intelligence pipeline · forehead-prosthesis/dispo-scrape</footer>
+<script>
+const CAP = 500;  // render at most this many rows; the count shows the full match total
+const TERPENES = ["Myrcene", "Limonene", "Caryophyllene", "Pinene", "Linalool", "Terpinolene", "Humulene", "Ocimene", "Bisabolol"];  // canonical terpene columns
+let PRODUCTS = [], STORES = {}, sortK = "n", sortDir = 1;
+const $ = id => document.getElementById(id);
+const getv = (x, k) => k === 'store' ? ((STORES[x.s]||{}).n||'')
+  : k.startsWith('tp:') ? ((x.tp||{})[k.slice(3)]) : x[k];
+
+async function loadState(st) {
+  const [p, s] = await Promise.all([
+    fetch(`products/${st}.json`).then(r => r.json()),
+    fetch('stores.json').then(r => r.json()),
+  ]);
+  PRODUCTS = p.products; STORES = s;
+  const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
+  $('cat').innerHTML = '<option value="">all categories</option>' +
+    cats.map(c => `<option>${c}</option>`).join('');
+  fillTypes();     // product-type dropdown — scoped to the chosen category
+  fillStrains();   // strain dropdown — scoped to the chosen category + type
+  fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
+  fillStores();    // store dropdown — scoped to the chosen category + type + strain + brand
+  fillCities();    // city autocomplete — scoped to the chosen category + type + strain + brand + store
+  render();
+}
+
+// Populate the product-type dropdown with only the chosen category's types (all types when no
+// category is selected), counts + alphabetical. Keeps the current pick if still valid, else resets.
+function fillTypes() {
+  const cat = $('cat').value, cur = $('ptype').value;
+  const ptc = {};
+  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
+  const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
+  $('ptype').innerHTML = '<option value="">all types</option>' +
+    ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
+  $('ptype').value = ptypes.includes(cur) ? cur : '';
+}
+
+// Populate the strain dropdown with only the strains present under the chosen category + type
+// (cascades below them). Keeps the current pick if still valid, else resets.
+function fillStrains() {
+  const cat = $('cat').value, ptype = $('ptype').value, cur = $('strain').value;
+  const set = new Set();
+  PRODUCTS.forEach(x => {
+    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype)) set.add(x.t);
+  });
+  const strains = [...set].sort();
+  $('strain').innerHTML = '<option value="">all strains</option>' +
+    strains.map(s => `<option>${s}</option>`).join('');
+  $('strain').value = strains.includes(cur) ? cur : '';
+}
+
+// Populate the brand dropdown (alphabetical, with product counts so dupes cluster) with only the
+// brands present under the chosen category + type + strain. Keeps the current pick if still valid.
+function fillBrands() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const cur = $('brand').value;
+  const bc = {};
+  PRODUCTS.forEach(x => {
+    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain))
+      bc[x.b] = (bc[x.b] || 0) + 1;
+  });
+  const brands = Object.keys(bc).sort((a, b) => a.localeCompare(b));
+  $('brand').innerHTML = `<option value="">all brands (${brands.length})</option>` +
+    brands.map(b => `<option value="${b}">${b} (${bc[b].toLocaleString()})</option>`).join('');
+  $('brand').value = brands.includes(cur) ? cur : '';
+}
+
+// Populate the store dropdown (by storefront name) with only the stores that carry a product under
+// the chosen category + type + strain + brand. Keeps the current pick if still valid, else resets.
+function fillStores() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, cur = $('store').value;
+  const keys = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand)) keys.add(x.s);
+  });
+  const stk = [...keys].map(k => [k, (STORES[k]||{}).n || k]).sort((a, b) => a[1].localeCompare(b[1]));
+  $('store').innerHTML = '<option value="">all stores</option>' +
+    stk.map(([k, n]) => `<option value="${k}">${n}</option>`).join('');
+  $('store').value = keys.has(cur) ? cur : '';
+}
+
+// Refresh the city autocomplete list with only the cities present under the chosen category + type
+// + strain + brand + store. City is a free-text contains-filter, so this only narrows the suggested
+// options (it doesn't clear what's typed).
+function fillCities() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, store = $('store').value;
+  const set = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand) && (!store || x.s === store)) {
+      const c = (STORES[x.s]||{}).c;
+      if (c) set.add(c);
+    }
+  });
+  $('citylist').innerHTML = [...set].sort().map(c => `<option value="${c}">`).join('');
+}
+
+function render() {
+  const q = $('q').value.toLowerCase().trim();
+  const brand = $('brand').value, ptype = $('ptype').value;
+  const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
+  const city = $('city').value.trim().toLowerCase();
+  const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
+  let rows = PRODUCTS.filter(x =>
+    (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
+    (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
+    (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
+    (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
+    (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
+    (isNaN(maxP) || (x.p != null && x.p <= maxP)));
+  rows.sort((a,b) => {
+    let va = getv(a, sortK), vb = getv(b, sortK);
+    if (va == null) return 1; if (vb == null) return -1;
+    return (typeof va === 'number' ? va - vb : (''+va).localeCompare(''+vb)) * sortDir;
+  });
+  $('count').textContent = `${rows.length.toLocaleString()} products` +
+    (rows.length > CAP ? ` (showing first ${CAP} — refine to narrow)` : '');
+  $('rows').innerHTML = rows.slice(0, CAP).map(x => {
+    const st = STORES[x.s] || {};
+    const cell = v => v == null ? '' : v;
+    const tps = TERPENES.map(t => `<td class="num">${(x.tp && x.tp[t] != null) ? x.tp[t] : ''}</td>`).join('');
+    const store = st.n ? (st.c && !(''+st.n).includes(st.c) ? st.n + ', ' + st.c : st.n) : '';
+    return `<tr><td>${cell(x.n)}</td><td>${cell(x.b)}</td><td>${cell(x.c)}</td>` +
+      `<td>${cell(x.pt)}</td><td>${cell(x.t)}</td><td class="num">${cell(x.thc)}</td><td class="num">${cell(x.cbd)}</td>` +
+      `<td class="num">${x.p==null?'':'$'+x.p}</td><td>${cell(x.sz)}</td>${tps}<td>${store}</td></tr>`;
+  }).join('');
+}
+
+document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
+  const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
+});
+['q','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// The Category → Type → Strain → Brand → Store → City cascade: each level re-scopes every below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
+$('strain').oninput = () => { fillBrands(); fillStores(); fillCities(); render(); };
+$('brand').oninput = () => { fillStores(); fillCities(); render(); };
+$('store').oninput = () => { fillCities(); render(); };
+$('state').onchange = () => loadState($('state').value);
+// Single-state build (e.g. the standalone PA site): the state pulldown is pointless — hide it and
+// name the state in the heading instead.
+if ($('state').options.length === 1) {
+  $('state').style.display = 'none';
+  document.querySelector('h1').textContent = $('state').value + ' dispensary product search';
+}
+loadState($('state').value);
+</script></body></html>
