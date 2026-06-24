@@ -25,6 +25,7 @@
  <input id="city" list="citylist" placeholder="city…" style="width:140px">
  <datalist id="citylist"></datalist>
  <select id="store"><option value="">all stores</option></select>
+ <select id="size"><option value="">all sizes</option></select>
  <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
  <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
 </div>
@@ -57,7 +58,8 @@ async function loadState(st) {
   fillStrains();   // strain dropdown — scoped to the chosen category + type
   fillBrands();    // brand dropdown — scoped to the chosen category + type + strain
   fillStores();    // store dropdown — scoped to the chosen category + type + strain + brand
-  fillCities();    // city autocomplete — scoped to the chosen category + type + strain + brand + store
+  fillSizes();     // size dropdown — scoped to the chosen category + type + strain + brand + store
+  fillCities();    // city autocomplete — scoped to all of the above
   render();
 }
 
@@ -124,11 +126,12 @@ function fillStores() {
 // options (it doesn't clear what's typed).
 function fillCities() {
   const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
-  const brand = $('brand').value, store = $('store').value;
+  const brand = $('brand').value, store = $('store').value, size = $('size').value;
   const set = new Set();
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
-        (!brand || x.b === brand) && (!store || x.s === store)) {
+        (!brand || x.b === brand) && (!store || x.s === store) &&
+        (!size || sizeBuckets(x).includes(size))) {
       const c = (STORES[x.s]||{}).c;
       if (c) set.add(c);
     }
@@ -136,16 +139,55 @@ function fillCities() {
   $('citylist').innerHTML = [...set].sort().map(c => `<option value="${c}">`).join('');
 }
 
+// Named size buckets PER category ({category_std: [canonical weight labels]}) — the sizes that
+// carry real volume within that category across the whole USA (Flower in eighths/ounces, Vape &
+// Concentrate in 1-2 g). A size that's odd for its category — and every dosed mg / "each" /
+// no-size product — folds into "Other".
+const COMMON_BY_CAT = {"Capsule": ["0.1g", "0.11g", "0.15g", "0.251g", "0.265g", "0.27g", "0.28g", "0.66g", "1g", "1.39g", "3g", "4g", "4.8g", "5g", "6g", "8g", "10g", "17.5g", "25g"], "Concentrate": ["1g", "2g", "3g", "3.5g", "4g", "5g", "7g"], "Flower": ["1g", "3.5g", "7g", "14g", "28g"], "Pre-Roll": ["1g", "1.2g", "1.25g", "1.3g", "1.5g", "2g", "2.5g", "3g", "3.5g", "5g", "7g", "10g", "14g", "28g"], "Vape": ["0.5g", "1g", "2g", "3g", "5g"]};
+
+// Grams in a label ("3.5g" -> 3.5) for ordering the pulldown; non-weight labels ("Other") sort last.
+const sizeG = s => { const n = parseFloat(s); return (s.endsWith('g') && n > 0) ? n : Infinity; };
+
+// A product's size labels (`sz` is " / "-joined) bucketed for the pulldown against ITS category's
+// common set: each common weight kept as-is, everything else collapsed to a single "Other".
+function sizeBuckets(x) {
+  if (!x.sz) return [];
+  const common = new Set(COMMON_BY_CAT[x.c] || []);
+  const set = new Set();
+  x.sz.split(' / ').forEach(s => set.add(common.has(s) ? s : 'Other'));
+  return [...set];
+}
+
+// Populate the size dropdown with the buckets present under the chosen category + type + strain +
+// brand + store: common weights ascending, then "Other" last. The cascade already scopes these to
+// the chosen category + type, so the list narrows to that type's real sizes. Keeps a valid pick.
+function fillSizes() {
+  const cat = $('cat').value, ptype = $('ptype').value, strain = $('strain').value;
+  const brand = $('brand').value, store = $('store').value, cur = $('size').value;
+  const present = new Set();
+  PRODUCTS.forEach(x => {
+    if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
+        (!brand || x.b === brand) && (!store || x.s === store))
+      sizeBuckets(x).forEach(s => present.add(s));
+  });
+  const sizes = [...present].sort((a, b) => (sizeG(a) - sizeG(b)) || a.localeCompare(b));
+  $('size').innerHTML = '<option value="">all sizes</option>' +
+    sizes.map(s => `<option>${s}</option>`).join('');
+  $('size').value = sizes.includes(cur) ? cur : '';
+}
+
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const brand = $('brand').value, ptype = $('ptype').value;
   const cat = $('cat').value, strain = $('strain').value, store = $('store').value;
+  const size = $('size').value;
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
     (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
     (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
+    (!size || sizeBuckets(x).includes(size)) &&
     (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
     (isNaN(maxP) || (x.p != null && x.p <= maxP)));
@@ -171,12 +213,13 @@ document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
 ['q','city','thc','pmax'].forEach(id => $(id).oninput = render);
-// The Category → Type → Strain → Brand → Store → City cascade: each level re-scopes every below it.
-$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
-$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillCities(); render(); };
-$('strain').oninput = () => { fillBrands(); fillStores(); fillCities(); render(); };
-$('brand').oninput = () => { fillStores(); fillCities(); render(); };
-$('store').oninput = () => { fillCities(); render(); };
+// The Category → Type → Strain → Brand → Store → Size → City cascade: each re-scopes every below it.
+$('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('strain').oninput = () => { fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
+$('brand').oninput = () => { fillStores(); fillSizes(); fillCities(); render(); };
+$('store').oninput = () => { fillSizes(); fillCities(); render(); };
+$('size').oninput = () => { fillCities(); render(); };
 $('state').onchange = () => loadState($('state').value);
 // Single-state build (e.g. the standalone PA site): the state pulldown is pointless — hide it and
 // name the state in the heading instead.
