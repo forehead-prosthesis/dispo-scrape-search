@@ -9,7 +9,10 @@
  #q{flex:1;min-width:200px}
  table{width:100%;border-collapse:collapse;font-size:14px}
  th,td{text-align:left;padding:.35rem .5rem;border-bottom:1px solid #eee}
- th{cursor:pointer;user-select:none;color:#0a58ca} td.num{text-align:right;font-variant-numeric:tabular-nums}
+ td.num{text-align:right;font-variant-numeric:tabular-nums}
+ tbody tr:nth-child(even){background:#f4f5f7}                 /* zebra striping */
+ thead th{position:sticky;top:0;z-index:1;cursor:pointer;user-select:none;color:#0a58ca;
+   background:#fff;box-shadow:inset 0 -1px 0 #ccc}            /* header stays while rows scroll */
  .count{color:#666;margin:.5rem 0}
  footer{color:#888;font-size:.85rem;margin-top:2rem}
 </style></head><body>
@@ -51,6 +54,9 @@ async function loadState(st) {
     fetch('stores.json').then(r => r.json()),
   ]);
   PRODUCTS = p.products; STORES = s;
+  // Precompute a lowercased name+brand search key ONCE per row, so the text filter doesn't
+  // re-lowercase 145k names on every keystroke.
+  PRODUCTS.forEach(x => { x._q = ((x.n || '') + ' ' + (x.b || '')).toLowerCase(); });
   const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
@@ -143,7 +149,7 @@ function fillCities() {
 // carry real volume within that category across the whole USA (Flower in eighths/ounces, Vape &
 // Concentrate in 1-2 g). A size that's odd for its category — and every dosed mg / "each" /
 // no-size product — folds into "Other".
-const COMMON_BY_CAT = {"Capsule": ["0.1g", "0.11g", "0.15g", "0.251g", "0.265g", "0.27g", "0.28g", "0.66g", "1g", "1.39g", "3g", "4g", "4.8g", "5g", "6g", "8g", "10g", "17.5g", "25g"], "Concentrate": ["1g", "2g", "3g", "3.5g", "4g", "5g", "7g"], "Flower": ["1g", "3.5g", "7g", "14g", "28g"], "Pre-Roll": ["1g", "1.2g", "1.25g", "1.3g", "1.5g", "2g", "2.5g", "3g", "3.5g", "5g", "7g", "10g", "14g", "28g"], "Vape": ["0.5g", "1g", "2g", "3g", "5g"]};
+const COMMON_BY_CAT = {"Concentrate": ["1g", "2g", "3g", "3.5g", "4g", "5g", "7g"], "Flower": ["1g", "3.5g", "7g", "14g", "28g"], "Pre-Roll": ["1g", "1.2g", "1.25g", "1.3g", "1.5g", "2g", "2.5g", "3g", "3.5g", "5g", "7g", "10g", "14g", "28g"], "Vape": ["0.5g", "1g", "2g", "3g", "5g"]};
 
 // Grams in a label ("3.5g" -> 3.5) for ordering the pulldown; non-weight labels ("Other") sort last.
 const sizeG = s => { const n = parseFloat(s); return (s.endsWith('g') && n > 0) ? n : Infinity; };
@@ -184,7 +190,7 @@ function render() {
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
   let rows = PRODUCTS.filter(x =>
-    (!q || (x.n && x.n.toLowerCase().includes(q)) || (x.b && x.b.toLowerCase().includes(q))) &&
+    (!q || x._q.includes(q)) &&
     (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
     (!cat || x.c === cat) && (!strain || x.t === strain) && (!store || x.s === store) &&
     (!size || sizeBuckets(x).includes(size)) &&
@@ -212,7 +218,12 @@ function render() {
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
 });
-['q','city','thc','pmax'].forEach(id => $(id).oninput = render);
+// Debounce the free-text inputs so a fast typist doesn't trigger a full 145k-row filter per
+// keystroke; the numeric inputs stay immediate.
+const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
+const dRender = debounce(render, 120);
+['q','city'].forEach(id => $(id).oninput = dRender);
+['thc','pmax'].forEach(id => $(id).oninput = render);
 // The Category → Type → Strain → Brand → Store → Size → City cascade: each re-scopes every below it.
 $('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
 $('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
