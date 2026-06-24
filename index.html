@@ -43,17 +43,35 @@
 <script>
 const CAP = 500;  // render at most this many rows; the count shows the full match total
 const TERPENES = ["Myrcene", "Limonene", "Caryophyllene", "Pinene", "Linalool", "Terpinolene", "Humulene", "Ocimene", "Bisabolol"];  // canonical terpene columns
+const USE_PARQUET = true;  // load .parquet shards (zstd, ~40% smaller) when exported
 let PRODUCTS = [], STORES = {}, sortK = "n", sortDir = 1;
 const $ = id => document.getElementById(id);
 const getv = (x, k) => k === 'store' ? ((STORES[x.s]||{}).n||'')
   : k.startsWith('tp:') ? ((x.tp||{})[k.slice(3)]) : x[k];
 
+// Load a state's products: prefer the compact .parquet shard decoded in-browser by the vendored
+// hyparquet bundle (no CDN, pure-JS zstd); fall back to the .json shard on any error so the page
+// always works. The terpene map rides as a JSON string column, parsed back here.
+async function loadProducts(st) {
+  if (USE_PARQUET) {
+    try {
+      const { parquetReadObjects, compressors } = await import('./parquet.min.js');
+      const ab = await fetch(`products/${st}.parquet`)
+        .then(r => { if (!r.ok) throw new Error(`parquet ${r.status}`); return r.arrayBuffer(); });
+      const rows = await parquetReadObjects({ file: ab, compressors });
+      for (const r of rows) r.tp = r.tp ? JSON.parse(r.tp) : null;
+      return rows;
+    } catch (e) { console.warn('parquet load failed — falling back to JSON', e); }
+  }
+  return (await fetch(`products/${st}.json`).then(r => r.json())).products;
+}
+
 async function loadState(st) {
-  const [p, s] = await Promise.all([
-    fetch(`products/${st}.json`).then(r => r.json()),
+  const [products, s] = await Promise.all([
+    loadProducts(st),
     fetch('stores.json').then(r => r.json()),
   ]);
-  PRODUCTS = p.products; STORES = s;
+  PRODUCTS = products; STORES = s;
   // Precompute a lowercased name+brand search key ONCE per row, so the text filter doesn't
   // re-lowercase 145k names on every keystroke.
   PRODUCTS.forEach(x => { x._q = ((x.n || '') + ' ' + (x.b || '')).toLowerCase(); });
