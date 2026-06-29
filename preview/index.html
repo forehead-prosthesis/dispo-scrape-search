@@ -70,12 +70,13 @@
  <span class="count" id="count"></span>
  <label class="sortwrap">Sort by <span aria-hidden="true">↕</span>
   <select id="sort" title="Sort the results">
-   <option value="n:1">Name (A–Z)</option>
-   <option value="p:1">Price: low to high</option>
-   <option value="p:-1">Price: high to low</option>
-   <option value="thc:-1">THC %: high to low</option>
-   <option value="cbd:-1">CBD %: high to low</option>
-   <option value="dist:1">Nearest first</option>
+   <option value="n|1">Name (A–Z)</option>
+   <option value="p|1">Price: low to high</option>
+   <option value="p|-1">Price: high to low</option>
+   <option value="thc|-1">THC %: high to low</option>
+   <option value="cbd|-1">CBD %: high to low</option>
+   <option value="dist|1">Nearest first</option>
+   <optgroup label="Terpene — high to low"><option value="tp:Myrcene|-1">Myrcene</option><option value="tp:Limonene|-1">Limonene</option><option value="tp:Caryophyllene|-1">Caryophyllene</option><option value="tp:Pinene|-1">Pinene</option><option value="tp:Linalool|-1">Linalool</option><option value="tp:Terpinolene|-1">Terpinolene</option><option value="tp:Humulene|-1">Humulene</option><option value="tp:Ocimene|-1">Ocimene</option><option value="tp:Bisabolol|-1">Bisabolol</option></optgroup>
   </select>
  </label>
 </div>
@@ -396,13 +397,13 @@ function render() {
 // sort control on mobile, where the clickable column headers are hidden in card view.
 function setSort(k, d) {
   sortK = k; sortDir = d;
-  const v = k + ':' + d, sel = $('sort');
+  const v = k + '|' + d, sel = $('sort');
   if (sel) sel.value = [...sel.options].some(o => o.value === v) ? v : '';
 }
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
   const k = th.dataset.k; setSort(k, (sortK === k) ? -sortDir : 1); render();
 });
-$('sort').onchange = () => { const [k, d] = $('sort').value.split(':'); setSort(k, +d); render(); };
+$('sort').onchange = () => { const [k, d] = $('sort').value.split('|'); setSort(k, +d); render(); };
 // Debounce the free-text inputs so a fast typist doesn't trigger a full 145k-row filter per
 // keystroke; the numeric inputs stay immediate.
 const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
