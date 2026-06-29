@@ -387,7 +387,7 @@ function render() {
     const store = st.n ? (st.c && !(''+st.n).includes(st.c) ? st.n + ', ' + st.c : st.n) : '';
     return `<tr><td data-label="Product">${cell(x.n)}</td><td data-label="Brand">${cell(x.b)}</td><td data-label="Category">${cell(x.c)}</td>` +
       `<td data-label="Type">${cell(x.pt)}</td><td data-label="Strain">${cell(x.t)}</td><td class="num" data-label="THC%">${cell(x.thc)}</td><td class="num" data-label="CBD%">${cell(x.cbd)}</td>` +
-      `<td class="num" data-label="Price">${x.p==null?'':'$'+x.p}</td><td data-label="Size">${cell(x.sz)}</td>${tps}` +
+      `<td class="num" data-label="Price">${x.p==null?'':'$'+x.p.toFixed(2)}</td><td data-label="Size">${cell(x.sz)}</td>${tps}` +
       `<td class="num" data-label="Miles">${STORE_DIST[x.s]==null?'':STORE_DIST[x.s].toFixed(1)}</td><td data-label="Store">${store}</td></tr>`;
   }).join('');
 }
