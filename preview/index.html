@@ -44,6 +44,14 @@
 <div class="filters">
  <select id="state"><option value="PA">PA</option></select>
  <input id="q" placeholder="search name or brand…">
+ <select id="sort" title="Sort the results">
+  <option value="n:1">Sort: Name (A–Z)</option>
+  <option value="p:1">Price: low to high</option>
+  <option value="p:-1">Price: high to low</option>
+  <option value="thc:-1">THC %: high to low</option>
+  <option value="cbd:-1">CBD %: high to low</option>
+  <option value="dist:1">Nearest first</option>
+ </select>
  <select id="brand"><option value="">all brands</option></select>
  <select id="cat"><option value="">all categories</option></select>
  <select id="ptype"><option value="">all types</option></select>
@@ -317,14 +325,14 @@ async function setNearFromZip() {
     const p = j && j.places && j.places[0];
     CENTER = p ? { lat: +p.latitude, lon: +p.longitude } : null;
   } catch (e) { CENTER = null; }
-  if (CENTER) { sortK = 'dist'; sortDir = 1; }
+  if (CENTER) setSort('dist', 1);
   applyNear();
 }
 function setNearFromGeo() {
   if (!navigator.geolocation) { alert('Geolocation is not available in this browser.'); return; }
   navigator.geolocation.getCurrentPosition(
     p => { CENTER = { lat: p.coords.latitude, lon: p.coords.longitude };
-           $('near').value = ''; sortK = 'dist'; sortDir = 1; applyNear(); },
+           $('near').value = ''; setSort('dist', 1); applyNear(); },
     () => alert('Could not get your location.'),
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
@@ -337,7 +345,7 @@ function resetAll() {
     .forEach(id => $(id).value = '');
   $('radius').value = '';
   CENTER = null;
-  sortK = 'n'; sortDir = 1;
+  setSort('n', 1);
   applyNear();   // recompute distances (cleared), refill all facets, re-render
 }
 
@@ -376,9 +384,18 @@ function render() {
   }).join('');
 }
 
+// One place sets the sort; it also keeps the Sort dropdown in sync (blanked when a header-click
+// sorts by a column the dropdown doesn't list, e.g. Size or a terpene). The dropdown is the only
+// sort control on mobile, where the clickable column headers are hidden in card view.
+function setSort(k, d) {
+  sortK = k; sortDir = d;
+  const v = k + ':' + d, sel = $('sort');
+  if (sel) sel.value = [...sel.options].some(o => o.value === v) ? v : '';
+}
 document.querySelectorAll('th[data-k]').forEach(th => th.onclick = () => {
-  const k = th.dataset.k; sortDir = (sortK === k) ? -sortDir : 1; sortK = k; render();
+  const k = th.dataset.k; setSort(k, (sortK === k) ? -sortDir : 1); render();
 });
+$('sort').onchange = () => { const [k, d] = $('sort').value.split(':'); setSort(k, +d); render(); };
 // Debounce the free-text inputs so a fast typist doesn't trigger a full 145k-row filter per
 // keystroke; the numeric inputs stay immediate.
 const debounce = (fn, ms) => { let t; return () => { clearTimeout(t); t = setTimeout(fn, ms); }; };
