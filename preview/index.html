@@ -140,14 +140,14 @@ async function applyNear() {
   if (key !== ACTIVE_KEY) {
     ACTIVE_KEY = key;
     PRODUCTS = states.flatMap(st => LOADED[st] || []);
-    refillFacets();
   }
+  refillFacets();   // always: a radius/center change re-scopes the facets even within one state
   render();
 }
 
 function refillFacets() {
   const curCat = $('cat').value;
-  const cats = [...new Set(PRODUCTS.map(x => x.c).filter(Boolean))].sort();
+  const cats = [...new Set(PRODUCTS.filter(inRadius).map(x => x.c).filter(Boolean))].sort();
   $('cat').innerHTML = '<option value="">all categories</option>' +
     cats.map(c => `<option>${c}</option>`).join('');
   $('cat').value = cats.includes(curCat) ? curCat : '';
@@ -170,7 +170,7 @@ async function loadState(st) {
 function fillTypes() {
   const cat = $('cat').value, cur = $('ptype').value;
   const ptc = {};
-  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
+  PRODUCTS.forEach(x => { if (x.pt && (!cat || x.c === cat) && inRadius(x)) ptc[x.pt] = (ptc[x.pt] || 0) + 1; });
   const ptypes = Object.keys(ptc).sort((a, b) => a.localeCompare(b));
   $('ptype').innerHTML = '<option value="">all types</option>' +
     ptypes.map(t => `<option value="${t}">${t} (${ptc[t].toLocaleString()})</option>`).join('');
@@ -183,7 +183,7 @@ function fillStrains() {
   const cat = $('cat').value, ptype = $('ptype').value, cur = $('strain').value;
   const set = new Set();
   PRODUCTS.forEach(x => {
-    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype)) set.add(x.t);
+    if (x.t && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && inRadius(x)) set.add(x.t);
   });
   const strains = [...set].sort();
   $('strain').innerHTML = '<option value="">all strains</option>' +
@@ -198,7 +198,7 @@ function fillBrands() {
   const cur = $('brand').value;
   const bc = {};
   PRODUCTS.forEach(x => {
-    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain))
+    if (x.b && (!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) && inRadius(x))
       bc[x.b] = (bc[x.b] || 0) + 1;
   });
   const brands = Object.keys(bc).sort((a, b) => a.localeCompare(b));
@@ -215,7 +215,7 @@ function fillStores() {
   const keys = new Set();
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
-        (!brand || x.b === brand)) keys.add(x.s);
+        (!brand || x.b === brand) && inRadius(x)) keys.add(x.s);
   });
   const stk = [...keys].map(k => [k, (STORES[k]||{}).n || k]).sort((a, b) => a[1].localeCompare(b[1]));
   $('store').innerHTML = '<option value="">all stores</option>' +
@@ -233,7 +233,7 @@ function fillCities() {
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
         (!brand || x.b === brand) && (!store || x.s === store) &&
-        (!size || sizeBuckets(x).includes(size))) {
+        (!size || sizeBuckets(x).includes(size)) && inRadius(x)) {
       const c = (STORES[x.s]||{}).c;
       if (c) set.add(c);
     }
@@ -269,7 +269,7 @@ function fillSizes() {
   const present = new Set();
   PRODUCTS.forEach(x => {
     if ((!cat || x.c === cat) && (!ptype || x.pt === ptype) && (!strain || x.t === strain) &&
-        (!brand || x.b === brand) && (!store || x.s === store))
+        (!brand || x.b === brand) && (!store || x.s === store) && inRadius(x))
       sizeBuckets(x).forEach(s => present.add(s));
   });
   const sizes = [...present].sort((a, b) => (sizeG(a) - sizeG(b)) || a.localeCompare(b));
@@ -296,6 +296,14 @@ function recomputeStoreDist() {
     const st = STORES[k];
     if (st.lat != null && st.lon != null) STORE_DIST[k] = haversine(CENTER.lat, CENTER.lon, st.lat, st.lon);
   }
+}
+// A product is "in range" when no location radius is active, or its store is within it. Scopes BOTH
+// the result rows AND every facet dropdown, so "ZIP + ≤25 mi" narrows the store/brand/type/… lists
+// to what's actually reachable — not just the table. (A store with no coords is out of range under
+// a finite radius.)
+function inRadius(x) {
+  const r = parseFloat($('radius').value);
+  return !CENTER || isNaN(r) || (STORE_DIST[x.s] != null && STORE_DIST[x.s] <= r);
 }
 // A complete 5-digit US ZIP geocodes via zippopotam.us (free, CORS-enabled, no key); blank clears
 // the center. On success, default the sort to nearest-first. The product data is never refetched.
@@ -327,7 +335,6 @@ function render() {
   const size = $('size').value;
   const city = $('city').value.trim().toLowerCase();
   const minThc = parseFloat($('thc').value), maxP = parseFloat($('pmax').value);
-  const radius = parseFloat($('radius').value);
   let rows = PRODUCTS.filter(x =>
     (!q || x._q.includes(q)) &&
     (!brand || x.b === brand) && (!ptype || x.pt === ptype) &&
@@ -336,7 +343,7 @@ function render() {
     (!city || (((STORES[x.s]||{}).c)||'').toLowerCase().includes(city)) &&
     (isNaN(minThc) || (x.thc != null && x.thc >= minThc)) &&
     (isNaN(maxP) || (x.p != null && x.p <= maxP)) &&
-    (!CENTER || isNaN(radius) || (STORE_DIST[x.s] != null && STORE_DIST[x.s] <= radius)));
+    inRadius(x));
   rows.sort((a,b) => {
     let va = getv(a, sortK), vb = getv(b, sortK);
     if (va == null) return 1; if (vb == null) return -1;
