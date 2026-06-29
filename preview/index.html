@@ -245,7 +245,7 @@ function fillCities() {
 // carry real volume within that category across the whole USA (Flower in eighths/ounces, Vape &
 // Concentrate in 1-2 g). A size that's odd for its category — and every dosed mg / "each" /
 // no-size product — folds into "Other".
-const COMMON_BY_CAT = {};
+const COMMON_BY_CAT = {"Concentrate": ["1g", "2g", "3g", "3.5g", "4g", "7g"], "Flower": ["1g", "3.5g", "7g", "14g", "28g", "28.3g"], "Vape": [".5g", "0.5g", "1g", "2g"], "Edible": ["0.02g", "0.025g", ".1g", ".2g", ".25g", ".4g", "0.5g", ".5g", ".75g", "1g"], "Topical": ["0.001g", "0.008g", "0.01g", "0.018g", "0.02g", "0.025g", "0.03g", "0.05g", "0.06g", ".1g", "0.12g", ".2g", ".3g", "0.375g", ".4g", "0.5g", ".5g", "1g"], "Tincture": ["0.01g", ".1g", ".2g", ".25g", ".3g", ".4g", "0.5g", ".5g", "1g"], "Accessory": ["0.0001g", "0.001g", "0.01g", "0.075g", ".1g", "1g", "2g", "4g", "8g", "62% 4g", "62% 8g"]};
 
 // Grams in a label ("3.5g" -> 3.5) for ordering the pulldown; non-weight labels ("Other") sort last.
 const sizeG = s => { const n = parseFloat(s); return (s.endsWith('g') && n > 0) ? n : Infinity; };
