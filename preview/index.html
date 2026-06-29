@@ -61,6 +61,7 @@
  <select id="size"><option value="">all sizes</option></select>
  <input id="thc" type="number" min="0" placeholder="min THC%" style="width:90px">
  <input id="pmax" type="number" min="0" placeholder="max $" style="width:80px">
+ <button id="reset" type="button" title="Clear all filters and search">Reset</button>
 </div>
 <div class="count" id="count"></div>
 <div class="tablewrap">
@@ -328,6 +329,18 @@ function setNearFromGeo() {
     { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 });
 }
 
+// Clear everything and return to the opening state — for when a chain of filters paints someone
+// into an empty-result corner. Resets search text, every facet, the location + radius, the THC/
+// price bounds and the sort, then re-derives the dropdowns and re-renders.
+function resetAll() {
+  ['q','brand','cat','ptype','strain','city','near','store','size','thc','pmax']
+    .forEach(id => $(id).value = '');
+  $('radius').value = '';
+  CENTER = null;
+  sortK = 'n'; sortDir = 1;
+  applyNear();   // recompute distances (cleared), refill all facets, re-render
+}
+
 function render() {
   const q = $('q').value.toLowerCase().trim();
   const brand = $('brand').value, ptype = $('ptype').value;
@@ -378,6 +391,7 @@ const dRender = debounce(render, 120);
 $('near').oninput = debounce(setNearFromZip, 300);
 $('geo').onclick = setNearFromGeo;
 $('radius').onchange = applyNear;
+$('reset').onclick = resetAll;
 // The Category → Type → Strain → Brand → Store → Size → City cascade: each re-scopes every below it.
 $('cat').oninput = () => { fillTypes(); fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
 $('ptype').oninput = () => { fillStrains(); fillBrands(); fillStores(); fillSizes(); fillCities(); render(); };
