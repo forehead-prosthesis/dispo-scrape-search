@@ -55,7 +55,7 @@
  .count b{color:var(--ink)}
 
  table{width:100%;border-collapse:collapse;font-size:13.5px}
- thead th{position:sticky;top:0;background:var(--paper)}
+ thead th{position:sticky;top:var(--ctrlH,0);z-index:4;background:var(--paper)}
  th{text-align:left;padding:.5rem .55rem;border-bottom:1.5px solid var(--line);cursor:pointer;user-select:none;
     font:600 11px/1 ui-sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
  th.num{text-align:right}
@@ -106,7 +106,7 @@
   </div>
  </div>
 
- <div class="controls">
+ <div class="controls" x-ref="ctrls">
   <div class="rankrow">
    <div class="seg" role="group" aria-label="rank by">
     <template x-for="r in RANKS" :key="r.k">
@@ -220,6 +220,7 @@ function search(){
   get heading(){ return this.states.length>1 ? "Ranked by value, not by the label." : this.state+" — ranked by value."; },
 
   async init(){ try{ this._effAck = localStorage.getItem("effAck")==="1"; }catch(e){} await this.loadState();
+   this.$nextTick(()=>{ const c=this.$refs.ctrls; if(c){ const set=()=>document.documentElement.style.setProperty("--ctrlH", c.offsetHeight+"px"); set(); if(window.ResizeObserver) new ResizeObserver(set).observe(c); } });
    ["q","cat","ptype","strain","brand","store","city","thc","pmax","radius","center","sortK","sortDir","priceBias","rank","effect","groupByProduct"]
     .forEach(k=>this.$watch(k,()=>this.recompute())); },
 
@@ -238,7 +239,11 @@ function search(){
   score(p){
    const tp=p.tp; let tt=0; if(tp) for(const k in tp) tt+=tp[k];
    p._tt=tt; p._terp=this.pctile(tt); p._cons=this.params.brands[p.b]||0;
-   p._gamed = p.thc==null?"" : p.thc>this.params.impossible?"impossible"
+   // gamed-label is a NATURAL-FLOWER phenomenon: >35% is physically impossible only for bud, and the
+   // 20/25/30 bunching is flower marketing. Vapes/concentrates/edibles/infused legitimately run high —
+   // scope the flag to natural flower (mirrors db.NATURAL_FLOWER_WHERE) or it misfires on all of them.
+   const nf = p.c==="Flower" && p.pt!=="Infused" && !/(infus|moonrock|moon rock|kief|dusted|coated|covered)/i.test(p.n||"");
+   p._gamed = (!nf || p.thc==null) ? "" : p.thc>this.params.impossible?"impossible"
      : (this.params.gameAbove.find(t=>p.thc>t&&p.thc<=t+2)!=null?"hot":"");
    p._trust = p._gamed==="impossible"?.55 : p._gamed?.8 : 1;
   },
