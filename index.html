@@ -38,9 +38,7 @@
  .evtag{font:700 10px/1 ui-sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:.18rem .35rem}
  .match{color:var(--green);font-size:12px}
  .more{color:var(--mut);font-size:12px}
- /* NO overflow here — an overflow container kills position:sticky on thead relative to the page.
-    Wide views (show-terpenes) scroll the page horizontally instead. */
- .tablewrap{}
+ .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
  button:focus-visible,th:focus-visible,.effchip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
  th[aria-sort]{position:relative}
  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
@@ -57,7 +55,7 @@
  .count b{color:var(--ink)}
 
  table{width:100%;border-collapse:collapse;font-size:13.5px}
- thead th{position:sticky;top:var(--ctrlH,0);z-index:4;background:var(--paper)}
+ thead th{background:var(--paper)}
  th{text-align:left;padding:.5rem .55rem;border-bottom:1.5px solid var(--line);cursor:pointer;user-select:none;
     font:600 11px/1 ui-sans-serif;letter-spacing:.06em;text-transform:uppercase;color:var(--mut);white-space:nowrap}
  th.num{text-align:right}
@@ -108,7 +106,7 @@
   </div>
  </div>
 
- <div class="controls" x-ref="ctrls">
+ <div class="controls">
   <div class="rankrow">
    <div class="seg" role="group" aria-label="rank by">
     <template x-for="r in RANKS" :key="r.k">
@@ -222,7 +220,6 @@ function search(){
   get heading(){ return this.states.length>1 ? "Ranked by value, not by the label." : this.state+" — ranked by value."; },
 
   async init(){ try{ this._effAck = localStorage.getItem("effAck")==="1"; }catch(e){} await this.loadState();
-   this.$nextTick(()=>{ const c=this.$refs.ctrls; if(c){ const set=()=>document.documentElement.style.setProperty("--ctrlH", c.offsetHeight+"px"); set(); if(window.ResizeObserver) new ResizeObserver(set).observe(c); } });
    ["q","cat","ptype","strain","brand","store","city","thc","pmax","radius","center","sortK","sortDir","priceBias","rank","effect","groupByProduct"]
     .forEach(k=>this.$watch(k,()=>this.recompute())); },
 
