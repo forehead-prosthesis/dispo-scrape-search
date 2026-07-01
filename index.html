@@ -279,7 +279,7 @@ function search(){
   get ptypes(){ const c={}; for(const x of this.products) if(x.pt&&(!this.cat||x.c===this.cat)) c[x.pt]=(c[x.pt]||0)+1; return Object.keys(c).sort().map(k=>({k,n:c[k]})); },
   get strains(){ const s=new Set(); for(const x of this.products) if(x.t&&(!this.cat||x.c===this.cat)&&(!this.ptype||x.pt===this.ptype)) s.add(x.t); return [...s].sort(); },
   get brands(){ const c={}; for(const x of this.products) if(x.b&&(!this.cat||x.c===this.cat)&&(!this.ptype||x.pt===this.ptype)&&(!this.strain||x.t===this.strain)) c[x.b]=(c[x.b]||0)+1; return Object.keys(c).sort().map(k=>({k,n:c[k]})); },
-  get storeList(){ const ks=new Set(); for(const x of this.products) if((!this.cat||x.c===this.cat)&&(!this.ptype||x.pt===this.ptype)&&(!this.strain||x.t===this.strain)&&(!this.brand||x.b===this.brand)) ks.add(x.s); return [...ks].map(k=>({k,n:(this.stores[k]||{}).n||k})).sort((a,b)=>a.n.localeCompare(b.n)); },
+  get storeList(){ const ks=new Set(); for(const x of this.products) if((!this.cat||x.c===this.cat)&&(!this.ptype||x.pt===this.ptype)&&(!this.strain||x.t===this.strain)&&(!this.brand||x.b===this.brand)) ks.add(x.s); return [...ks].map(k=>({k,n:this.storeLabel(k)||k})).sort((a,b)=>a.n.localeCompare(b.n)); },
   get cities(){ const s=new Set(); for(const x of this.products){ if((!this.cat||x.c===this.cat)&&(!this.ptype||x.pt===this.ptype)&&(!this.strain||x.t===this.strain)&&(!this.brand||x.b===this.brand)&&(!this.store||x.s===this.store)){ const c=(this.stores[x.s]||{}).c; if(c) s.add(c);} } return [...s].sort(); },
   onCat(){ if(!this.ptypes.some(o=>o.k===this.ptype)) this.ptype=""; this.onPtype(); },
   onPtype(){ if(!this.strains.includes(this.strain)) this.strain=""; this.onStrain(); },
