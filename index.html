@@ -38,7 +38,9 @@
  .evtag{font:700 10px/1 ui-sans-serif;letter-spacing:.04em;text-transform:uppercase;color:var(--mut);border:1px solid var(--line);border-radius:5px;padding:.18rem .35rem}
  .match{color:var(--green);font-size:12px}
  .more{color:var(--mut);font-size:12px}
- .tablewrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+ /* NO overflow here — an overflow container kills position:sticky on thead relative to the page.
+    Wide views (show-terpenes) scroll the page horizontally instead. */
+ .tablewrap{}
  button:focus-visible,th:focus-visible,.effchip:focus-visible{outline:2px solid var(--green);outline-offset:2px}
  th[aria-sort]{position:relative}
  @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
