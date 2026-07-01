@@ -94,7 +94,7 @@
  <header>
   <p class="eyebrow">PA medical menu · live</p>
   <h1 x-text="heading">Ranked by <em>value</em>, not by the label.</h1>
-  <p class="sub">Every store in the state, one search. We rank on <b>terpene content</b>, <b>brand consistency</b>, and <b>price</b> — and we <b>flag THC numbers that run hot</b> (cannabis labels are inflated; that's measured, not a guess). <span x-text="snapshot"></span></p>
+  <p class="sub">Every store in the state, one search. We rank on <b>terpene content</b>, <b>brand consistency</b>, and <b>price</b> — and we <b>flag THC numbers that look inflated</b> (cannabis labels are inflated; that's measured, not a guess). <span x-text="snapshot"></span></p>
  </header>
 
  <!-- #4 first-use acknowledgment before the experimental effect filter (dismiss-once, localStorage) -->
@@ -183,7 +183,7 @@
      <td class="prod"><div class="nm" x-text="x.n"></div><div class="meta"><span x-text="x.b"></span> · <span x-text="x.c"></span><span x-show="x.t" x-text="' · '+(x.t||'')"></span></div><div class="match" x-show="effect&&x._mt">▸ <span x-text="x._mt"></span></div></td>
      <td class="hideSm" x-text="x.b"></td>
      <td class="hideSm" x-text="x.pt"></td>
-     <td class="thc"><span x-text="fmt(x.thc)"></span><span class="flag" x-show="x._gamed" :data-k="x._gamed" x-text="x._gamed==='impossible'?'impossible':'runs hot'"></span></td>
+     <td class="thc"><span x-text="fmt(x.thc)"></span><span class="flag" x-show="x._gamed" :data-k="x._gamed" x-text="x._gamed==='impossible'?'impossible':'inflated?'"></span></td>
      <td class="num hideSm" x-text="fmt(x.cbd)"></td>
      <td class="num" x-text="x.ppg!=null?'$'+x.ppg.toFixed(2):''"></td>
      <td class="hideSm" x-text="x.sz"></td>
@@ -243,13 +243,14 @@ function search(){
    // 20/25/30 bunching is flower marketing. Vapes/concentrates/edibles/infused legitimately run high —
    // scope the flag to natural flower (mirrors db.NATURAL_FLOWER_WHERE) or it misfires on all of them.
    const nf = p.c==="Flower" && p.pt!=="Infused" && !/(infus|moonrock|moon rock|kief|dusted|coated|covered)/i.test(p.n||"");
+   p._flower = nf;   // flower metrics (value / terpene-rich / trusted-brand / gamed) apply only to natural flower
    p._gamed = (!nf || p.thc==null) ? "" : p.thc>this.params.impossible?"impossible"
      : (this.params.gameAbove.find(t=>p.thc>t&&p.thc<=t+2)!=null?"hot":"");
    p._trust = p._gamed==="impossible"?.55 : p._gamed?.8 : 1;
   },
   pctile(tt){ const b=this.params.terpBreaks; if(!b.length||!tt) return 0;
    let i=0; while(i<b.length&&b[i]<tt) i++; return Math.min(1,i/(b.length-1)); },
-  value(p){ if(p.ppg==null||p.ppg<=0||!p._tt) return 0;
+  value(p){ if(!p._flower||p.ppg==null||p.ppg<=0||!p._tt) return 0;   // Smart value is flower-only
    const wq = this.priceBias/100;            // 0=price-first, 1=quality-first
    const quality = this.params.weights.terp*p._terp + this.params.weights.cons*p._cons;
    return (quality*p._trust) * (0.4+1.2*wq) / Math.pow(p.ppg, 1.4-0.8*wq); },
@@ -291,7 +292,8 @@ function search(){
   onStrain(){ if(!this.brands.some(o=>o.k===this.brand)) this.brand=""; this.onBrand(); },
   onBrand(){ if(!this.storeList.some(o=>o.k===this.store)) this.store=""; },
 
-  getv(x,k){ return k==="store"?((this.stores[x.s]||{}).n||"") : k==="_d"?(x._d==null?Infinity:x._d)
+  getv(x,k){ if((k==="_tt"||k==="_cons")&&!x._flower) return -Infinity;   // flower-only ranks sink non-flower
+   return k==="store"?((this.stores[x.s]||{}).n||"") : k==="_d"?(x._d==null?Infinity:x._d)
     : k.startsWith("tp:")?((x.tp||{})[k.slice(3)]) : x[k]; },
   sortBy(k){ this.sortDir=(this.sortK===k)?-this.sortDir:1; this.sortK=k; this.rank=""; },
   ariaSort(k){ return this.sortK===k ? (this.sortDir>0?"ascending":"descending") : "none"; },
